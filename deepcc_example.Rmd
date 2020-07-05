@@ -1,0 +1,58 @@
+---
+title: "deepcc case study"
+author: "lee"
+date: "6/25/2020"
+output: html_document
+---
+In this case study, we use data set of colorectal cancer from The Cancer Genome Altas (TCGA) as training data set. And data set GSE13067 from Affymetrix Human Genome is used as validation. In addition, you can obtain well organized colorectal cancer data from CRCSC's repository on [Synapse](https://www.synapse.org/#!Synapse:syn2623706/wiki/).
+Meanwhile, get DeepCC from [DeepCC github](https://github.com/CityUHK-CompBio/DeepCC)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = F)
+
+library(keras)
+library(DeepCC)
+library(caret)
+```
+
+### loading sample expression data
+```{r}
+crc_tcga_eps <- readRDS("crc_tcga_eps.RData")
+crc_tcga_labels <- readRDS("crc_tcga_labels.RData")
+
+crc_gse13067_eps <- readRDS("crc_gse13067_eps.RData")
+```
+
+### calculate functional spectra (most time-cost step: 60-90 minutes with 10 cores)
+```{r}
+t1 <- Sys.time()
+crc_tcga_fps <- getFunctionalSpectra(crc_tcga_eps, geneSets = "MSigDBv7")
+t2 <- Sys.time()
+
+time_cost <- t2 -t1
+```
+
+### train deepcc model
+```{r}
+crc_tcga_deepcc_model <- train_DeepCC_model(crc_tcga_fps, crc_tcga_labels)
+```
+
+### predict labels of validation data set
+```{r}
+crc_gse13067_fps <- getFunctionalSpectra(crc_gse13067_eps, geneSet = "MSigDBv7")
+pred_gse13067_labs <- get_DeepCC_label(crc_tcga_deepcc_model, crc_gse13067_fps)
+```
+
+### get deep features of GSE13067
+```{r}
+gse13067_deep_features <- get_DeepCC_features(crc_tcga_deepcc_model, crc_gse13067_fps)
+```
+
+### View classification 
+```{r}
+library(ggsci)
+mypal =pal_npg("nrc")(levels(as.factor(pred_gse13067_labs)))
+vis_plot <- vis_samples(gse13067_deep_features, pred_gse13067_labs, color = mypal)
+vis_plot
+```
